@@ -28,3 +28,14 @@ fusion_run = fuse(
 
 if args.fusion_save_path is not None:
     fusion_run.save(args.save_path, kind='trec')
+
+
+def fuse_runs(run_file_dir):
+    run_files = glob.glob(run_file_dir + "/*.txt")
+    runs = []
+    for run_file in tqdm(run_files, desc='loading run files'):
+        runs.append(Run.from_file(run_file, kind="trec"))
+    fusion_run = fuse(
+        runs=runs,
+        method="rrf")
+    return fusion_run
