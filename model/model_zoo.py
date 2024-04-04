@@ -14,6 +14,20 @@ from model.CustomModels import SimLMDEModel, CoCondenserModel, AnglEModel, E5Mod
 from model.model_collection import ModelClass
 
 
+class SentenceBERT(models.SentenceBERT):
+    def __init__(self, model_path = None, cache_folder = None, sep: str = " ", **kwargs):
+        self.sep = sep
+
+        if isinstance(model_path, str):
+            self.q_model = SentenceTransformer(model_path, cache_folder=cache_folder)
+            self.doc_model = self.q_model
+
+        elif isinstance(model_path, tuple):
+            self.q_model = SentenceTransformer(model_path[0], cache_folder=cache_folder)
+            self.doc_model = SentenceTransformer(model_path[1], cache_folder=cache_folder)
+
+
+
 class CustomModel(ModelClass):
     def __init__(self, model_dir="/opt/data/IR_models/",  specific_model=None):
         super().__init__(model_dir)
@@ -177,12 +191,12 @@ class BeirModels(ModelClass):
                 break
 
         # replace "/" with "_"
-        model_name = model_name.replace("/", "_")
-        model_dir = os.path.join(self.model_dir, model_name)
-        model = models.SentenceBERT(model_dir)
+        # model_name = model_name.replace("/", "_")
+        # model_dir = os.path.join(self.model_dir, model_name)
+        model = SentenceBERT(model_name, cache_folder=self.model_dir)
 
-        model.config = AutoConfig.from_pretrained(model_dir)
-        model.tokenizer = AutoTokenizer.from_pretrained(model_dir)
+        model.config = AutoConfig.from_pretrained(model_name, cache_dir=self.model_dir)
+        model.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=self.model_dir)
 
         if cuda:
             model.q_model = model.q_model.cuda()

@@ -1,16 +1,17 @@
 
-from utils import read_and_write
-import  json
+import gc
+import json
+import os
+
+import faiss
+import torch
+from beir.retrieval.evaluation import EvaluateRetrieval
 
 from data.dataset_collection import Datasets
-from beir.retrieval.evaluation import EvaluateRetrieval
 from model.model_zoo import CustomModel, BeirModels
-import faiss
-from utils.read_and_write import read_doc_enc_from_pickle, save_search_results, load_search_results
-import gc, os
+from utils import read_and_write
 from utils.get_args import get_args
-import torch
-
+from utils.read_and_write import read_doc_enc_from_pickle, save_search_results, load_search_results
 
 
 def tokenize_and_save(args, models, model_names,
@@ -108,7 +109,6 @@ def run_evaluation(args, models, names):
     else:
         cuda = False
     for model_name in names:
-
         model = models.load_model(model_name, model_name_or_path=None, cuda=cuda)
         dataset = Datasets(args.dataset_dir)
         if args.dataset_name == "msmarco":
@@ -193,24 +193,21 @@ def run_evaluation(args, models, names):
         if args.special_token:
             continue
         else:
-            for qid in queries:
-                if qid not in qrels:
-                    print(f"qid {qid} not in qrels")
-                if args.fake_queries:
-                    print("Eval Results fake!")
-                    log_dir = os.path.join(args.log_dir, "eval_results_fake", args.dataset_name)
-                    name = "eval_{}_{}_{}.txt".format(args.dataset_name, model_name, args.fake_id_qrels)
-                else:
-                    # user_id + args.job
-                    log_dir = os.path.join(args.log_dir, "eval_results", args.user_id, args.dataset_name)
-                    name = "eval_{}_{}.txt".format(args.dataset_name, model_name)
-                if not os.path.exists(log_dir):
-                    os.makedirs(log_dir)
-                path_to_file = os.path.join(log_dir, name)
-                # print(qrels)
-                save_eval_results(qrels, results, path_to_file)
-                # del doc_embeds, doc_ids, queries, qrels
-                gc.collect()
+            if args.fake_queries:
+                print("Eval Results fake!")
+                log_dir = os.path.join(args.log_dir, "eval_results_fake", args.dataset_name)
+                name = "eval_{}_{}_{}.txt".format(args.dataset_name, model_name, args.fake_id_qrels)
+            else:
+                # user_id + args.job
+                log_dir = os.path.join(args.log_dir, "eval_results", args.user_id, args.dataset_name)
+                name = "eval_{}_{}.txt".format(args.dataset_name, model_name)
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+            path_to_file = os.path.join(log_dir, name)
+            # print(qrels)
+            save_eval_results(qrels, results, path_to_file)
+            # del doc_embeds, doc_ids, queries, qrels
+            gc.collect()
 
 
 def run_encoding(args,  models, names):
@@ -236,6 +233,7 @@ def run_encoding_or_eval():
 
     if args.specific_model:
         MODELS = [CustomModel(args.model_dir, specific_model=args.specific_model)]
+
         if args.specific_model not in MODELS[0].score_function.keys():
             MODELS = [BeirModels(model_dir=args.model_dir, specific_model=args.specific_model)]
             MODELS[0].download_models()
