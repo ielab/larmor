@@ -1,12 +1,12 @@
 import random
-from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed, T5ForConditionalGeneration
+from transformers import set_seed
 import torch
 from tqdm import tqdm
 import json
 from typing import List, Tuple, Dict
 from torch.utils.data import Dataset, DataLoader
 from transformers import PreTrainedTokenizer, DataCollatorWithPadding
-from prompts import PROMPT_QG_FLAN_T5, PROMPT_QG_OpenAI, PROMPT_POINTWISE_FLAN_T5, PROMPT_POINTWISE_OPENAI
+from prompts import PROMPT_QG_FLAN_T5, PROMPT_QG_OpenAI, PROMPT_POINTWISE_FLAN_T5
 from openai import OpenAI
 import openai
 import time
@@ -252,87 +252,87 @@ class FlanT5PointwiseJudger(Judger):
         return qrels
 
 
-class OpenAiPointwiseJudger(Judger):
-    def __init__(self, model, key, dataset_name):
-        self.model = model
-        self.dataset_name = dataset_name
-        self.qids = []
-        self.docids = []
-        self.total_prompt_tokens = 0
-        self.total_completion_tokens = 0
-        self.client = OpenAI(
-          api_key=key,
-        )
-
-    def judge(self, inputs: List[Tuple]) -> Dict[str, Dict[str, int]]:
-        outputs = []
-        for qid, docid, query, title, text in tqdm(inputs, desc="Generating relevance labels"):
-            while True:
-                try:
-                    completion = self.client.chat.completions.create(
-                        model=self.model,
-                        response_format={"type": "json_object"},
-                        messages=[
-                            {"role": "system", "content": PROMPT_POINTWISE_OPENAI[self.dataset_name]['system']},
-                            {"role": "user", "content": PROMPT_POINTWISE_OPENAI[self.dataset_name]['user'].format(query=query,
-                                                                                                                  title=title,
-                                                                                                                  text=text)}
-                        ]
-                    )
-                    outputs.append(list(json.loads(completion.choices[0].message.content).values())[0])
-                    self.docids.append(docid)
-                    self.qids.append(qid)
-
-                    self.total_completion_tokens += int(completion.usage.completion_tokens)
-                    self.total_prompt_tokens += int(completion.usage.prompt_tokens)
-
-                    break
-
-                except openai.APIError as e:
-                    # Handle API error here, e.g. retry or log
-                    print(f"OpenAI API returned an API Error: {e}")
-                    time.sleep(5)
-                    continue
-                except openai.APIConnectionError as e:
-                    # Handle connection error here
-                    print(f"Failed to connect to OpenAI API: {e}")
-                    time.sleep(5)
-                    continue
-                except openai.RateLimitError as e:
-                    # Handle rate limit error (we recommend using exponential backoff)
-                    print(f"OpenAI API request exceeded rate limit: {e}")
-                    time.sleep(5)
-                    continue
-                except openai.BadRequestError as e:
-                    # Handle invalid request error
-                    print(f"OpenAI API request was invalid: {e}")
-                    raise e
-                except openai.AuthenticationError as e:
-                    # Handle authentication error
-                    print(f"OpenAI API request failed authentication: {e}")
-                    raise e
-                except openai.Timeout as e:
-                    # Handle timeout error
-                    print(f"OpenAI API request timed out: {e}")
-                    time.sleep(5)
-                    continue
-                except openai.InternalServerError as e:
-                    # Handle service unavailable error
-                    print(f"OpenAI API request failed with a service unavailable error: {e}")
-                    time.sleep(5)
-                    continue
-                except Exception as e:
-                    print(f"Unknown error: {e}")
-                    raise e
-
-        print("Total prompt tokens:", self.total_prompt_tokens)
-        print("Total completion tokens:", self.total_completion_tokens)
-
-        qrels = {}
-        for qid, docid, output in zip(self.qids, self.docids, outputs):
-            if qid not in qrels:
-                qrels[qid] = {}
-            if output.lower() == PROMPT_POINTWISE_OPENAI[self.dataset_name]['key'].lower():
-                qrels[qid][docid] = 1
-
-        return qrels
+# class OpenAiPointwiseJudger(Judger):
+#     def __init__(self, model, key, dataset_name):
+#         self.model = model
+#         self.dataset_name = dataset_name
+#         self.qids = []
+#         self.docids = []
+#         self.total_prompt_tokens = 0
+#         self.total_completion_tokens = 0
+#         self.client = OpenAI(
+#           api_key=key,
+#         )
+#
+#     def judge(self, inputs: List[Tuple]) -> Dict[str, Dict[str, int]]:
+#         outputs = []
+#         for qid, docid, query, title, text in tqdm(inputs, desc="Generating relevance labels"):
+#             while True:
+#                 try:
+#                     completion = self.client.chat.completions.create(
+#                         model=self.model,
+#                         response_format={"type": "json_object"},
+#                         messages=[
+#                             {"role": "system", "content": PROMPT_POINTWISE_OPENAI[self.dataset_name]['system']},
+#                             {"role": "user", "content": PROMPT_POINTWISE_OPENAI[self.dataset_name]['user'].format(query=query,
+#                                                                                                                   title=title,
+#                                                                                                                   text=text)}
+#                         ]
+#                     )
+#                     outputs.append(list(json.loads(completion.choices[0].message.content).values())[0])
+#                     self.docids.append(docid)
+#                     self.qids.append(qid)
+#
+#                     self.total_completion_tokens += int(completion.usage.completion_tokens)
+#                     self.total_prompt_tokens += int(completion.usage.prompt_tokens)
+#
+#                     break
+#
+#                 except openai.APIError as e:
+#                     # Handle API error here, e.g. retry or log
+#                     print(f"OpenAI API returned an API Error: {e}")
+#                     time.sleep(5)
+#                     continue
+#                 except openai.APIConnectionError as e:
+#                     # Handle connection error here
+#                     print(f"Failed to connect to OpenAI API: {e}")
+#                     time.sleep(5)
+#                     continue
+#                 except openai.RateLimitError as e:
+#                     # Handle rate limit error (we recommend using exponential backoff)
+#                     print(f"OpenAI API request exceeded rate limit: {e}")
+#                     time.sleep(5)
+#                     continue
+#                 except openai.BadRequestError as e:
+#                     # Handle invalid request error
+#                     print(f"OpenAI API request was invalid: {e}")
+#                     raise e
+#                 except openai.AuthenticationError as e:
+#                     # Handle authentication error
+#                     print(f"OpenAI API request failed authentication: {e}")
+#                     raise e
+#                 except openai.Timeout as e:
+#                     # Handle timeout error
+#                     print(f"OpenAI API request timed out: {e}")
+#                     time.sleep(5)
+#                     continue
+#                 except openai.InternalServerError as e:
+#                     # Handle service unavailable error
+#                     print(f"OpenAI API request failed with a service unavailable error: {e}")
+#                     time.sleep(5)
+#                     continue
+#                 except Exception as e:
+#                     print(f"Unknown error: {e}")
+#                     raise e
+#
+#         print("Total prompt tokens:", self.total_prompt_tokens)
+#         print("Total completion tokens:", self.total_completion_tokens)
+#
+#         qrels = {}
+#         for qid, docid, output in zip(self.qids, self.docids, outputs):
+#             if qid not in qrels:
+#                 qrels[qid] = {}
+#             if output.lower() == PROMPT_POINTWISE_OPENAI[self.dataset_name]['key'].lower():
+#                 qrels[qid][docid] = 1
+#
+#         return qrels

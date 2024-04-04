@@ -1,13 +1,12 @@
-import ir_datasets
 import random
 import argparse
-from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed, T5ForConditionalGeneration
+from transformers import AutoTokenizer, set_seed, T5ForConditionalGeneration
 from judgers import FlanT5QgJudger, OpenaiQgJudger
 import torch
-random.seed(929)
-set_seed(929)
 import os
 import json
+random.seed(929)
+set_seed(929)
 
 
 class Document:
@@ -34,20 +33,18 @@ def main(args):
         tokenizer = AutoTokenizer.from_pretrained(args.model_name)
         judge_model = FlanT5QgJudger(model,
                                      tokenizer,
-                                     args.ir_dataset,
+                                     args.dataset_name,
                                      num_gen_qry_per_doc=args.num_gen_qry_per_doc,
                                      batch_size=args.batch_size)
     elif 'gpt' in args.model_name and args.openai_key is not None:
         judge_model = OpenaiQgJudger(args.model_name,
                                      args.openai_key,
-                                     args.ir_dataset,
+                                     args.dataset_name,
                                      num_gen_qry_per_doc=args.num_gen_qry_per_doc)
     else:
         raise NotImplementedError
-    try:
-        dataset = ir_datasets.load(args.ir_dataset)
-    except:
-        dataset = CustomDataset(args.ir_dataset)
+
+    dataset = CustomDataset(os.path.join(args.dataset_dir, args.dataset_name))
 
     num_docs = len(dataset.docs)
     sample_doc_ids = set(random.sample(range(num_docs), args.num_sample_docs))
@@ -58,7 +55,7 @@ def main(args):
             docid = doc.doc_id
             try:
                 title = doc.title.strip()
-                if args.dataset == 'beir/scidocs': # we dont include title for this dataset because the task is tilte generation
+                if args.dataset_name == 'scidocs':  # we dont include title for this dataset because the task is tilte generation
                     title = ""
             except:
                 title = ""
@@ -79,7 +76,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ir_dataset", type=str)
+    parser.add_argument("--dataset_name", type=str)
+    parser.add_argument("--dataset_dir", type=str)
     parser.add_argument("--model_name", type=str)
     parser.add_argument("--num_sample_docs", type=int, default=100)
     parser.add_argument("--num_gen_qry_per_doc", type=int, default=1)

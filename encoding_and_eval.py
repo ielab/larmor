@@ -122,7 +122,7 @@ def run_evaluation(args, models, names):
         if args.fake_queries:
             # read from qrels
             queries, qrels = {}, {}
-            data_temp = f"{args.fake_data_dir}/{args.dataset_name}/"
+            data_temp = f"{args.dataset_dir}/{args.dataset_name}/"
             with open(os.path.join(data_temp, "{}-{}.qrels".format(args.dataset_name, args.fake_id_qrels)), 'r') as f:
                 for line in f:
                     qid, _, doc_id, _ = line.split()
