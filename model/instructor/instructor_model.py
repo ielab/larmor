@@ -10,10 +10,13 @@ from tqdm.autonotebook import trange
 from torch import Tensor, device
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.models import Transformer
+from sentence_transformers.util import load_file_path
 from transformers import AutoConfig
 from transformers import AutoTokenizer
 from collections import OrderedDict
 from torch import nn
+from huggingface_hub import snapshot_download
+
 
 def batch_to_device(batch, target_device: device):
     for key in batch:
@@ -438,30 +441,65 @@ class INSTRUCTOR(SentenceTransformer):
 
         return sentence_features, labels
 
-    def _load_sbert_model(self, model_path):
+    def _load_sbert_model(
+        self,
+        model_name_or_path: str,
+        token,
+        cache_folder,
+        revision = None,
+        trust_remote_code: bool = False,
+    ):
         """
         Loads a full sentence-transformers model
         """
         # Check if the config_sentence_transformers.json file exists (exists since v2 of the framework)
-        config_sentence_transformers_json_path = os.path.join(model_path, 'config_sentence_transformers.json')
-        if os.path.exists(config_sentence_transformers_json_path):
+        config_sentence_transformers_json_path = load_file_path(
+            model_name_or_path,
+            "config_sentence_transformers.json",
+            token=token,
+            cache_folder=cache_folder,
+            revision=revision,
+        )
+        if config_sentence_transformers_json_path is not None:
             with open(config_sentence_transformers_json_path) as fIn:
                 self._model_config = json.load(fIn)
 
+            # if (
+            #     "__version__" in self._model_config
+            #     and "sentence_transformers" in self._model_config["__version__"]
+            #     and self._model_config["__version__"]["sentence_transformers"] > __version__
+            # ):
+            #     logger.warning(
+            #         "You try to use a model that was created with version {}, however, your version is {}. This might cause unexpected behavior or errors. In that case, try to update to the latest version.\n\n\n".format(
+            #             self._model_config["__version__"]["sentence_transformers"], __version__
+            #         )
+            #     )
+
+            # Set prompts if not already overridden by the __init__ calls
+            if not self.prompts:
+                self.prompts = self._model_config.get("prompts", {})
+            if not self.default_prompt_name:
+                self.default_prompt_name = self._model_config.get("default_prompt_name", None)
+
         # Check if a readme exists
-        model_card_path = os.path.join(model_path, 'README.md')
-        if os.path.exists(model_card_path):
+        model_card_path = load_file_path(
+            model_name_or_path, "README.md", token=token, cache_folder=cache_folder, revision=revision
+        )
+        if model_card_path is not None:
             try:
-                with open(model_card_path, encoding='utf8') as fIn:
+                with open(model_card_path, encoding="utf8") as fIn:
                     self._model_card_text = fIn.read()
-            except:
+            except Exception:
                 pass
 
         # Load the modules of sentence transformer
-        modules_json_path = os.path.join(model_path, 'modules.json')
+        modules_json_path = load_file_path(
+            model_name_or_path, "modules.json", token=token, cache_folder=cache_folder, revision=revision
+        )
         with open(modules_json_path) as fIn:
             modules_config = json.load(fIn)
 
+        model_path = snapshot_download(model_name_or_path, token=token, cache_dir=cache_folder, revision=revision)
         modules = OrderedDict()
         for module_config in modules_config:
             if module_config['idx']==0:
@@ -471,6 +509,7 @@ class INSTRUCTOR(SentenceTransformer):
                 module_class = INSTRUCTOR_Pooling
             else:
                 module_class = import_from_string(module_config['type'])
+
             module = module_class.load(os.path.join(model_path, module_config['path']))
             modules[module_config['name']] = module
 

@@ -441,6 +441,7 @@ class InstructorModel(CustomDEModel):
         kwargs['batch_size'] = 128
         return self.encoder.encode(sentences, **kwargs)
 
+
 class JinaModel(SentenceBERT):
     def __init__(self, model_path):
         self.score_function = "cos_sim"

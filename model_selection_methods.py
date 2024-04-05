@@ -1,4 +1,5 @@
-import gc, os
+import gc
+import os
 import random
 from utils.distances import get_binary_entropy
 import json
@@ -25,11 +26,10 @@ from utils.fusion import fuse_runs
 
 
 def query_similarity(models, datasets, model_name, queries_target):
-
     if torch.cuda.is_available():
-        cuda=True
+        cuda = True
     else:
-        cuda=False
+        cuda = False
 
     model = models.load_model(model_name, model_name_or_path=None, cuda=cuda)
     if models.source_datasets[model_name] == "nq":
@@ -39,17 +39,17 @@ def query_similarity(models, datasets, model_name, queries_target):
 
     # Load source queries
     _, queries_source, qrels_source = datasets.load_dataset(models.source_datasets[model_name],
-                                                           load_corpus=False, split=split)
+                                                            load_corpus=False, split=split)
     # Get query embeddings
     query_list_t = [queries_target[qid] for qid in queries_target]
     query_embeds_t = model.encode_queries(query_list_t, batch_size=32, show_progress_bar=True,
-                                         convert_to_tensor=False)
+                                          convert_to_tensor=False)
     query_list_s = [queries_source[qid] for qid in queries_source]
     query_embeds_s = model.encode_queries(query_list_s, batch_size=32, show_progress_bar=True,
-                                         convert_to_tensor=False)
+                                          convert_to_tensor=False)
     # For each target query, search for the closest source query
     scores, indices = search(query_embeddings=query_embeds_t, doc_embeddings=query_embeds_s,
-                                 top_k=1, score_function=models.score_function[model_name])
+                             top_k=1, score_function=models.score_function[model_name])
 
     return scores, indices
 
@@ -88,7 +88,6 @@ def _batched_frechet(doc_embeds_s, doc_embeds_t, subsample_size):
 
 
 def corpus_similarity(args, models, model_name):
-
     doc_embeds_s, _ = read_doc_enc_from_pickle(models.source_datasets[model_name], model_name,
                                                args.embedding_dir)
     doc_embeds_t, _ = read_doc_enc_from_pickle(args.dataset_name, model_name, args.embedding_dir)
@@ -97,7 +96,7 @@ def corpus_similarity(args, models, model_name):
 
 
 def extracted_corpus_similarity(args, models, model_name, queries):
-    query_list = [queries[qid] for qid in  queries]
+    query_list = [queries[qid] for qid in queries]
     model = models.load_model(model_name, model_name_or_path=None)
 
     search_result = load_search_results(args.search_results_dir, args.dataset_name, model_name)
@@ -151,7 +150,6 @@ def extracted_corpus_similarity(args, models, model_name, queries):
 
 
 def binary_entropy(args, models, model_name, queries, corpus):
-
     """
     Evaluate the model based on the entropy of its predictions
     Read the search id of the document for the query
@@ -197,7 +195,7 @@ def binary_entropy(args, models, model_name, queries, corpus):
                                             dataset_name=args.dataset_name)
     else:
         query_embeds = model.encode_queries(query_list, batch_size=32,
-                                        convert_to_tensor=False)
+                                            convert_to_tensor=False)
 
     irrelevant_scores = get_score(query_embeds, emb_irrelevant,
                                   score_function=score_function)
@@ -217,7 +215,7 @@ def binary_entropy(args, models, model_name, queries, corpus):
 
         stats[query_ids] = {}
         for k in [3, 5, 10, 50, 100, 1000]:
-            stats[query_ids]["mean@"+str(k)] = torch.mean(scores[:k]).cpu().item()
+            stats[query_ids]["mean@" + str(k)] = torch.mean(scores[:k]).cpu().item()
             stats[query_ids]["std@" + str(k)] = torch.std(scores[:k]).cpu().item()
 
         entropy_per_doc = get_binary_entropy(scores)
@@ -240,7 +238,6 @@ def binary_entropy(args, models, model_name, queries, corpus):
 
 
 def _mine_for_irrelevant_docs(search_results, corpus):
-
     """
     Mines for up to 1000 irrelevant documents
 
@@ -345,28 +342,26 @@ def _adding_mask_tokens(tokenizer: AutoTokenizer, text: str, mask_ratio: float):
     mask_index = random.sample(range(len(tokens)), mask_num)
     for i in mask_index:
         if mask_token is None:
-             tokens[i] = f"<extra_id_{i}>"
+            tokens[i] = f"<extra_id_{i}>"
         else:
-             tokens[i] = mask_token
+            tokens[i] = mask_token
 
     return tokenizer.convert_tokens_to_string(tokens)
 
 
 def gold_fusion(args, model_name):
-
     if args.task == "fusion":
         predicted_rank = load_search_results(os.path.join(args.log_dir, "search_results"),
                                              args.dataset_name, model_name=model_name)
         gold_rank = load_search_results(os.path.join(args.log_dir, f"search_results_fusion"),
                                         args.dataset_name, special_id="fusion_run")
     elif "fake_fusion" in args.task:
-        # arguana-flan-t5-xl-q10.fusion.txt
         predicted_rank = load_search_results(os.path.join(args.log_dir, "search_results_fake"),
                                              args.dataset_name,
-            special_id=f"sch_{args.dataset_name}_{model_name}_{args.fake_id_qrels}")
+                                             special_id=f"sch_{args.dataset_name}_{model_name}_{args.fake_id_qrels}")
         gold_rank = load_search_results(os.path.join(args.log_dir, f"search_results_{args.task}"),
-                                         args.dataset_name,
-            special_id=f"{args.dataset_name}-{args.fake_id_queries}")
+                                        args.dataset_name,
+                                        special_id=f"{args.dataset_name}-{args.fake_id_queries}")
     else:
         raise ValueError("Task not supported")
 
@@ -381,7 +376,6 @@ def gold_fusion(args, model_name):
 
 def pseudo_eval(args, models, model_name,
                 pseudo_qid, pseudo_query, pseudo_qrels, ):
-
     model = models.load_model(model_name, model_name_or_path=None)
     doc_embeds, doc_ids = read_doc_enc_from_pickle(args.dataset_name, model_name,
                                                    args.embedding_dir, user_id=args.user_id)
@@ -414,7 +408,6 @@ def pseudo_eval(args, models, model_name,
 
 
 def qpps(args, model_name, queries, name="sigma_max"):
-
     search_results = load_search_results(log_dir=os.path.join(args.log_dir, "search_results"),
                                          dataset_name=args.dataset_name,
                                          model_name=model_name)
@@ -422,7 +415,7 @@ def qpps(args, model_name, queries, name="sigma_max"):
     scores = []
     for q_indx, query_id in enumerate(queries.keys()):
         score_list = [score for (pid, score) in sorted(search_results[query_id].items(),
-                                                   key=lambda x: x[1], reverse=True)]
+                                                       key=lambda x: x[1], reverse=True)]
         if name == "sigma_max":
             score, _ = SIGMA_MAX(score_list)
         elif name == "nqc":
@@ -494,7 +487,7 @@ def model_selection():
                     score = 1
                 else:
                     scores, std_res = query_alteration(args, models, model_name, queries,
-                                                        cuda=torch.cuda.is_available())
+                                                       cuda=torch.cuda.is_available())
                     score = np.mean(list(std_res.values()))
 
             elif "fusion" in args.task:
@@ -525,25 +518,25 @@ def model_selection():
     id_temp = args.fake_id_queries
     log_dir = os.path.join(args.log_dir, "model_selection", args.job_id)
     os.makedirs(log_dir, exist_ok=True)
-    # os.makedirs(os.path.join(log_dir, args.task), exist_ok=True)
+    os.makedirs(os.path.join(log_dir, args.task), exist_ok=True)
 
     score_file = "score_{}_{}{}.txt".format(args.task, args.dataset_name, id_temp)
     score_sorted = sorted(score_dict.items(), key=lambda x: x[1], reverse=reverse_score)
 
-    with open(os.path.join(log_dir, score_file), "w") as f:
+    with open(os.path.join(log_dir, args.task, score_file), "w") as f:
         # f.write("Rank\tModel\tScore\n")
         for rank_i, (model_name, score) in enumerate(score_sorted):
-            f.write(f"{rank_i}\t{model_name}\t{score}\n")
+            f.write(f"{0} Q0 {model_name} {rank_i} {score} {args.task}\n")
 
     # If this is not a demo - calculate evaluation, namely tau correlation and
     if len(args.user_id) == 0:
-        with open(os.path.join(log_dir, args.task, score_file), "w") as f:
-            json.dump(score_dict, f, default=_convert_to_serializable)
+        # with open(os.path.join(log_dir, args.task, score_file), "w") as f:
+        #     json.dump(score_dict, f, default=_convert_to_serializable)
 
         # Compute Tau correlation
         tau, p_value = stats.kendalltau(list(score_dict.values()),
                                         list(ndsg10.values()))
-        print("TAU@", tau)
+        print("TAU on NDCG@10:", tau)
         # Save Tau values in file
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
@@ -554,6 +547,16 @@ def model_selection():
         tau_file = "tau_{}_{}{}.txt".format(args.task, args.dataset_name, id_temp)
         with open(os.path.join(log_dir, args.task, tau_file), "w") as f:
             json.dump(tau, f)
+
+        max_ndcg10 = np.max(list(ndsg10.values()))
+        predicted_best_model = max(score_dict, key=score_dict.get)
+        delta_ndcg10 = (max_ndcg10 - ndsg10[predicted_best_model]) * 100
+        print('Delta on NDCG@10:', delta_ndcg10)
+        ndcg10_file = "ndcg10_{}_{}{}.txt".format(args.task, args.dataset_name, id_temp)
+        with open(os.path.join(log_dir, args.task, ndcg10_file), "w") as f:
+            json.dump(delta_ndcg10, f)
+
+
     print("Finished")
 
 
@@ -564,8 +567,6 @@ def _convert_to_serializable(obj):
 
 
 if __name__ == "__main__":
-
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     model_selection()
-

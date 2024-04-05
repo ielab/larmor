@@ -19,7 +19,10 @@ class SentenceBERT(models.SentenceBERT):
         self.sep = sep
 
         if isinstance(model_path, str):
-            self.q_model = SentenceTransformer(model_path, cache_folder=cache_folder)
+            if "jina-embeddings-" in model_path:
+                self.q_model = SentenceTransformer(model_path, cache_folder=cache_folder, trust_remote_code=True)
+            else:
+                self.q_model = SentenceTransformer(model_path, cache_folder=cache_folder)
             self.doc_model = self.q_model
 
         elif isinstance(model_path, tuple):
@@ -65,6 +68,10 @@ class CustomModel(ModelClass):
             "simlm-base-msmarco-finetuned": "dot",
             "co-condenser-marco-retriever": "dot",
         }
+
+    def download_models(self):
+        for model in self.names:
+            self.load_model(model, cuda=False)
 
     def load_model(self, name, cuda=True, model_name_or_path=None):
         assert name in self.names
@@ -176,9 +183,12 @@ class BeirModels(ModelClass):
         for name in self.model_name_or_path:
             # print("Downloading", name)
             if "jina-embeddings-" in name:
-                continue
-            SentenceTransformer(model_name_or_path=name,
-                                cache_folder=self.model_dir)
+                SentenceTransformer(model_name_or_path=name,
+                                    cache_folder=self.model_dir,
+                                    trust_remote_code=True)
+            else:
+                SentenceTransformer(model_name_or_path=name,
+                                    cache_folder=self.model_dir)
 
             # print("Finished loading")
 

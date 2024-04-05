@@ -12,6 +12,7 @@ from model.model_zoo import CustomModel, BeirModels
 from utils import read_and_write
 from utils.get_args import get_args
 from utils.read_and_write import read_doc_enc_from_pickle, save_search_results, load_search_results
+from tqdm import tqdm
 
 
 def tokenize_and_save(args, models, model_names,
@@ -195,11 +196,11 @@ def run_evaluation(args, models, names):
         else:
             if args.fake_queries:
                 print("Eval Results fake!")
-                log_dir = os.path.join(args.log_dir, "eval_results_fake", args.dataset_name)
+                log_dir = os.path.join(args.log_dir, "eval_results_fake")
                 name = "eval_{}_{}_{}.txt".format(args.dataset_name, model_name, args.fake_id_qrels)
             else:
                 # user_id + args.job
-                log_dir = os.path.join(args.log_dir, "eval_results", args.user_id, args.dataset_name)
+                log_dir = os.path.join(args.log_dir, "eval_results", args.user_id)
                 name = "eval_{}_{}.txt".format(args.dataset_name, model_name)
             if not os.path.exists(log_dir):
                 os.makedirs(log_dir)
@@ -236,14 +237,15 @@ def run_encoding_or_eval():
 
         if args.specific_model not in MODELS[0].score_function.keys():
             MODELS = [BeirModels(model_dir=args.model_dir, specific_model=args.specific_model)]
-            MODELS[0].download_models()
+        MODELS[0].download_models()
     else:
         # run on all models
         MODELS = [BeirModels(args.model_dir),
                   CustomModel(model_dir=args.model_dir)]
         MODELS[0].download_models()
+        MODELS[1].download_models()
 
-    for models in MODELS:
+    for models in tqdm(MODELS, desc="Models"):
         for model_name in models.names:
             args.model_name = model_name
             print("Start with model", model_name)

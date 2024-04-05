@@ -1,12 +1,11 @@
 import logging
-import ir_datasets
 from pyserini.search.lucene import LuceneSearcher
 from pyserini.search._base import get_topics
-from rankers.rankers import SearchResult
-from rankers.pointwise import PointwiseLlmRanker, MonoT5LlmRanker
-from rankers.setwise import SetwiseLlmRanker, OpenAiSetwiseLlmRanker
-from rankers.pairwise import PairwiseLlmRanker, DuoT5LlmRanker, OpenAiPairwiseLlmRanker
-from rankers.listwise import OpenAiListwiseLlmRanker, ListwiseLlmRanker
+from llmrankers.rankers import SearchResult
+from llmrankers.pointwise import PointwiseLlmRanker, MonoT5LlmRanker
+from llmrankers.setwise import SetwiseLlmRanker, OpenAiSetwiseLlmRanker
+from llmrankers.pairwise import PairwiseLlmRanker, DuoT5LlmRanker, OpenAiPairwiseLlmRanker
+from llmrankers.listwise import OpenAiListwiseLlmRanker, ListwiseLlmRanker
 from tqdm import tqdm
 import argparse
 import sys
@@ -133,28 +132,9 @@ def main(args):
         raise ValueError('Must specify either --pointwise, --setwise, --pairwise or --listwise.')
 
     query_map = {}
-    if args.run.ir_dataset_name is not None:
-        try:
-            dataset = ir_datasets.load(args.run.ir_dataset_name)
-        except:
-            from run_qg import CustomDataset
-            dataset = CustomDataset(args.run.ir_dataset_name)
+    docstore = LuceneSearcher.from_prebuilt_index(args.run.pyserini_index+'.flat')
 
-        for query in dataset.queries_iter():
-            qid = query.query_id
-            text = query.text
-            query_map[qid] = ranker.truncate(text, args.run.query_length)
-        dataset = ir_datasets.load(args.run.ir_dataset_name)
-        docstore = dataset.docs_store()
-    else:
-        topics = get_topics(args.run.pyserini_index+'-test')
-        for topic_id in list(topics.keys()):
-            text = topics[topic_id]['title']
-            query_map[str(topic_id)] = ranker.truncate(text, args.run.query_length)
-        docstore = LuceneSearcher.from_prebuilt_index(args.run.pyserini_index+'.flat')
-
-    if args.run.query_file is not None:  # override the queries if query file is provided
-        query_map = {}
+    if args.run.query_file is not None:
         with open(args.run.query_file) as f:
             for line in f:
                 items = line.strip().split('\t')
@@ -164,6 +144,12 @@ def main(args):
                 else:
                     qid, query = items
                     query_map[qid] = ranker.truncate(query, args.run.query_length)
+    else:
+        topics = get_topics(args.run.pyserini_index + '-test')
+        for topic_id in list(topics.keys()):
+            text = topics[topic_id]['title']
+            query_map[str(topic_id)] = ranker.truncate(text, args.run.query_length)
+
 
     logger.info(f'Loading first stage run from {args.run.run_path}.')
     first_stage_rankings = []
@@ -179,18 +165,13 @@ def main(args):
                 current_qid = qid
             if len(current_ranking) >= args.run.hits:
                 continue
-            if args.run.ir_dataset_name is not None:
-                text = docstore.get(docid).text
-                if 'title' in dir(docstore.get(docid)):
-                    text = f'{docstore.get(docid).title} {text}'
+            if docstore.doc(docid) is None:
+                text = ''
             else:
-                if docstore.doc(docid) is None:
-                    text = ''
-                else:
-                    data = json.loads(docstore.doc(docid).raw())
-                    text = data['text']
-                    if 'title' in data:
-                        text = f'{data["title"]} {text}'
+                data = json.loads(docstore.doc(docid).raw())
+                text = data['text']
+                if 'title' in data:
+                    text = f'{data["title"]} {text}'
             if text != '':
                 text = ranker.truncate(text, args.run.passage_length)
             current_ranking.append(SearchResult(docid=docid, score=float(score), text=text))
@@ -235,7 +216,6 @@ if __name__ == '__main__':
                             help='Path to the pretrained model or model identifier from huggingface.co/models')
     run_parser.add_argument('--tokenizer_name_or_path', type=str, default=None,
                             help='Path to the pretrained tokenizer or tokenizer identifier from huggingface.co/tokenizers')
-    run_parser.add_argument('--ir_dataset_name', type=str, default=None)
     run_parser.add_argument('--pyserini_index', type=str, default=None)
     run_parser.add_argument('--hits', type=int, default=100)
     run_parser.add_argument('--query_file', type=str, default=None)
@@ -272,8 +252,6 @@ if __name__ == '__main__':
 
     args = parse_args(parser, commands)
 
-    if args.run.ir_dataset_name is not None and args.run.pyserini_index is not None:
-        raise ValueError('Must specify either --ir_dataset_name or --pyserini_index, not both.')
 
     arg_dict = vars(args)
     if arg_dict['run'] is None or sum(arg_dict[arg] is not None for arg in arg_dict) != 2:

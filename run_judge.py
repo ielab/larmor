@@ -13,7 +13,7 @@ from ranx import fuse
 random.seed(929)
 set_seed(929)
 
-VALID_MODELS = ['gte-small', 'msmarco-distilbert-base-tas-b', 'bge-small-en-v1', 'msmarco-distilbert-base-v3', 'jina-embeddings-v2-small-en', 'e5-base', 'SGPT-2', 'gtr-t5-large', 'instructor-base', 'bge-base-en-v1', 'sentence-t5-large', 'gte-large', 'all-MiniLM-L12-v2', 'gtr-t5-base', 'instructor-xl', 'msmarco-MiniLM-L-12-v3', 'e5-base-v2', 'co-condenser-marco-retriever', 'gtr-t5-xl', 'contriever', 'msmarco-MiniLM-L-6-v3', 'e5-large-v2', 'bge-large-en-v1', 'multilingual-e5-base', 'e5', 'UAE-Large-V1', 'SGPT-1', 'ember-v1', 'all-mpnet-base-v2', 'jina-embeddings-v2-base-en', 'e5-small-v2', 'e5-large', 'gte-base', 'all-MiniLM-L6-v2', 'sentence-t5-xl', 'stella-base-en-v2', 'msmarco-distilbert-base-dot-prod-v3', 'SGPT-5', 'msmarco-distilbert-base-v2', 'SGPT-125M-weightedmean-msmarco-specb-bitfit', 'gte-tiny', 'multilingual-e5-small', 'simlm-base-msmarco-finetuned', 'msmarco-roberta-base-ance-firstp', 'e5-small', 'instructor-large', 'multilingual-e5-large']
+# VALID_MODELS = ['gte-small', 'msmarco-distilbert-base-tas-b', 'bge-small-en-v1.5', 'msmarco-distilbert-base-v3', 'jina-embeddings-v2-small-en', 'e5-base', 'SGPT-2', 'gtr-t5-large', 'instructor-base', 'bge-base-en-v1.5', 'sentence-t5-large', 'gte-large', 'all-MiniLM-L12-v2', 'gtr-t5-base', 'instructor-xl', 'msmarco-MiniLM-L-12-v3', 'e5-base-v2', 'co-condenser-marco-retriever', 'gtr-t5-xl', 'contriever', 'msmarco-MiniLM-L-6-v3', 'e5-large-v2', 'bge-large-en-v1.5', 'multilingual-e5-base', 'e5', 'UAE-Large-V1', 'SGPT-1', 'ember-v1', 'all-mpnet-base-v2', 'jina-embeddings-v2-base-en', 'e5-small-v2', 'e5-large', 'gte-base', 'all-MiniLM-L6-v2', 'sentence-t5-xl', 'stella-base-en-v2', 'msmarco-distilbert-base-dot-prod-v3', 'SGPT-5', 'msmarco-distilbert-base-v2', 'SGPT-125M-weightedmean-msmarco-specb-bitfit', 'gte-tiny', 'multilingual-e5-small', 'simlm-base-msmarco-finetuned', 'msmarco-roberta-base-ance-firstp', 'e5-small', 'instructor-large', 'multilingual-e5-large']
 
 
 @dataclass
@@ -59,15 +59,10 @@ def main(args):
     print(run_files)
     runs = []
     for run_file in tqdm(run_files, desc='loading run files'):
-        # runs.append(Run.from_file(run_file, kind="trec"))
+        print(run_file.split('_')[-2])
+        runs.append(Run.from_file(run_file, kind="trec"))
 
-        if run_file.split('_')[-2] in VALID_MODELS:
-            print(run_file.split('_')[-2])
-            runs.append(Run.from_file(run_file, kind="trec"))
-        else:
-            raise ValueError(f"Invalid model name in run file: {run_file.split('_')[-2]}")
-    # print(len(runs))
-    # assert len(runs) == 47  # temp check
+    assert len(runs) == 47  # temp check
 
     print('fusing runs')
     fusion_run = fuse(
