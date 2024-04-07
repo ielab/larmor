@@ -17,6 +17,7 @@ beir==2.0.0
 faiss-cpu==1.8.0
 llm-rankers==0.0.1
 rbo==0.1.3
+ranx==0.3.19
 transformers==4.39.3
 sentence-transformers==2.6.1
 pyserini==0.22.1
@@ -43,7 +44,7 @@ LOG_DIR=results
 EMBEDDING_DIR=embeddings
 NUM_Q=10
 NUM_D=100
-MODEL=flan-t5-xxl  # or flan-t5-xl, flan-t5-xxl,
+MODEL=flan-t5-xxl  # or flan-t5-xl, flan-t5-xl,
 export TRANSFORMERS_CACHE=${MODEL_DIR}
 export SENTENCE_TRANSFORMERS_HOME=${MODEL_DIR}
 export PYSERINI_CACHE=cache
@@ -126,7 +127,7 @@ python3 model_selection_methods.py \
 --fake_id_qrels ${MODEL}-q${NUM_Q}
 ```
 
-You will get the following results and these results along the model ranking file will be saved in the `results/${BEIR_DATASET}/model_selection` directory.:
+You will get the following results and these results along the model ranking file will be saved in the `results/${BEIR_DATASET}/model_selection` directory:
 ```
 TAU on NDCG@10: 0.5127256449012385
 Delta on NDCG@10: 6.167
@@ -196,8 +197,6 @@ python3 model_selection_methods.py \
 --embedding_dir ${EMBEDDING_DIR} \
 --task fake_qrels \
 --fake_id_qrels ${MODEL}-q${NUM_Q}.fusion-top100
-#TAU on NDCG@10: 0.5855689176688252
-#Delta on NDCG@10: 4.704999999999998
 
 ```
 You will get the following results:
