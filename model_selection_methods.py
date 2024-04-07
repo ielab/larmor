@@ -14,7 +14,7 @@ from transformers import AutoTokenizer
 from utils.get_args import get_args
 from utils.distances import calculate_frechet_distance, stats_for_frechet, entropy
 from utils.read_and_write import (read_doc_enc_from_pickle, get_embedding_subset, load_search_results,
-                                  transform_search_results, save_search_results)
+                                  transform_search_results, save_search_results, load_eval_results)
 from utils.scores import get_score
 
 from utils.qpp_post import SIGMA_MAX, NQC, SMV
@@ -23,6 +23,9 @@ from data.dataset_collection import Datasets
 from beir.retrieval.evaluation import EvaluateRetrieval
 from model.model_zoo import CustomModel, BeirModels
 from utils.fusion import fuse_runs
+from ranx import Qrels, Run
+from ranx import fuse
+
 
 
 def query_similarity(models, datasets, model_name, queries_target):
@@ -430,6 +433,32 @@ def qpps(args, model_name, queries, name="sigma_max"):
     return score
 
 
+def fake_qrels(args, model_name):
+    eval_log_dir = os.path.join(args.log_dir, "eval_results_fake")
+    eval_name = "eval_{}_{}_{}.txt".format(args.dataset_name, model_name, args.fake_id_qrels)
+    with open(os.path.join(eval_log_dir, eval_name), "r") as f:
+        eval_results = json.load(f)
+        ndsg10 = eval_results[0]['NDCG@10']
+
+    return ndsg10
+
+
+def model_ranking_fusion(args):
+    rankings = []
+
+    qrel_ranking_file = os.path.join(args.log_dir, 'model_selection', 'fake_qrels', f'score_fake_qrels_{args.dataset_name}_{args.fake_id_qrels}.txt')
+    rankings.append(Run.from_file(qrel_ranking_file, kind="trec"))
+
+    ref_ranking_file = os.path.join(args.log_dir, 'model_selection', 'fake_fusion', f'score_fake_fusion_{args.dataset_name}_{args.fake_id_queries}.txt')
+    rankings.append(Run.from_file(ref_ranking_file, kind="trec"))
+
+    fusion_ranking = fuse(
+        runs=rankings,
+        method="rrf",
+    )
+    return fusion_ranking['0']
+
+
 def model_selection():
     args = get_args()
     print(args.log_dir)
@@ -450,20 +479,6 @@ def model_selection():
     corpus, queries, qrels = datasets.load_dataset(args.dataset_name, load_corpus=True, user_id=args.user_id)
     print("Dataset is loaded")
 
-    if args.task == "fusion":
-
-        fused_run = fuse_runs(os.path.join(args.log_dir, f"search_results"))
-        folder = os.path.join(args.log_dir, "search_results_fusion")
-        # check if the fusion run exists
-        fusion_file = os.path.join(folder, "fusion_run.txt")
-        if not os.path.exists(fusion_file):
-            os.makedirs(folder, exist_ok=True)
-            fused_run.save(os.path.join(folder, "fusion_run.txt"), kind='trec')
-
-    score_dict = {}
-    ndsg10 = {}
-    #
-
     if args.specific_model:
         MODELS = [CustomModel(args.model_dir, specific_model=args.specific_model)]
         if args.specific_model not in MODELS[0].score_function.keys():
@@ -474,6 +489,21 @@ def model_selection():
                   CustomModel(model_dir=args.model_dir)]
     # MODELS = [BeirModels(args.model_dir, specific_model="gte-tiny")]
 
+    if args.task == "fusion":
+        fused_run = fuse_runs(os.path.join(args.log_dir, f"search_results"))
+        folder = os.path.join(args.log_dir, "search_results_fusion")
+        # check if the fusion run exists
+        fusion_file = os.path.join(folder, "fusion_run.txt")
+        if not os.path.exists(fusion_file):
+            os.makedirs(folder, exist_ok=True)
+            fused_run.save(os.path.join(folder, "fusion_run.txt"), kind='trec')
+
+    score_dict_fused = None
+    if args.task == "model_ranking_fusion":
+        score_dict_fused = model_ranking_fusion(args)
+
+    score_dict = {}
+    ndsg10 = {}
     reverse_score = False
     for models in MODELS:
         model_names = models.names
@@ -490,21 +520,28 @@ def model_selection():
                                                        cuda=torch.cuda.is_available())
                     score = np.mean(list(std_res.values()))
 
+            elif args.task == "model_ranking_fusion":
+                score = score_dict_fused[model_name]
+                reverse_score = True
+
             elif "fusion" in args.task:
                 scores = gold_fusion(args, model_name)
                 score = np.mean(scores)
                 reverse_score = True
+
             elif args.task == "qpp_sigma_max":
                 score = qpps(args, model_name, queries, name="sigma_max")
             elif args.task == "qpp_nqc":
                 score = qpps(args, model_name, queries, name="nqc")
             elif args.task == "qpp_smv":
                 score = qpps(args, model_name, queries, name="smv")
-
+            elif args.task == "fake_qrels":
+                score = fake_qrels(args, model_name)
+                reverse_score = True
             else:
                 raise ValueError("Task {} not supported".format(args.task))
+
             score_dict[model_name] = score
-            # If this is not a demo
             if len(args.user_id) == 0:
                 # Load ground truth NDCG@10
                 eval_log_dir = os.path.join(args.log_dir, "eval_results")
@@ -515,12 +552,18 @@ def model_selection():
                 print("Model:", model_name, "Task:", args.task,
                       "Score:", score_dict[model_name], "NDSG10:", ndsg10[model_name])
 
-    id_temp = args.fake_id_queries
+    if args.task == "model_ranking_fusion":
+        id_temp = 'larmor'
+    elif args.task == 'fake_qrels':
+        id_temp = args.fake_id_qrels
+    else:
+        id_temp = args.fake_id_queries
+
     log_dir = os.path.join(args.log_dir, "model_selection", args.job_id)
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(os.path.join(log_dir, args.task), exist_ok=True)
 
-    score_file = "score_{}_{}{}.txt".format(args.task, args.dataset_name, id_temp)
+    score_file = "score_{}_{}_{}.txt".format(args.task, args.dataset_name, id_temp)
     score_sorted = sorted(score_dict.items(), key=lambda x: x[1], reverse=reverse_score)
 
     with open(os.path.join(log_dir, args.task, score_file), "w") as f:
@@ -541,10 +584,7 @@ def model_selection():
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
 
-        id_temp = args.fake_id_queries
-        if len(id_temp) != 0:
-            id_temp = "_" + id_temp
-        tau_file = "tau_{}_{}{}.txt".format(args.task, args.dataset_name, id_temp)
+        tau_file = "tau_{}_{}_{}.txt".format(args.task, args.dataset_name, id_temp)
         with open(os.path.join(log_dir, args.task, tau_file), "w") as f:
             json.dump(tau, f)
 
@@ -552,10 +592,9 @@ def model_selection():
         predicted_best_model = max(score_dict, key=score_dict.get)
         delta_ndcg10 = (max_ndcg10 - ndsg10[predicted_best_model]) * 100
         print('Delta on NDCG@10:', delta_ndcg10)
-        ndcg10_file = "ndcg10_{}_{}{}.txt".format(args.task, args.dataset_name, id_temp)
+        ndcg10_file = "ndcg10_{}_{}_{}.txt".format(args.task, args.dataset_name, id_temp)
         with open(os.path.join(log_dir, args.task, ndcg10_file), "w") as f:
             json.dump(delta_ndcg10, f)
-
 
     print("Finished")
 

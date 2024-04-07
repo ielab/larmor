@@ -257,32 +257,3 @@ if __name__ == '__main__':
     if arg_dict['run'] is None or sum(arg_dict[arg] is not None for arg in arg_dict) != 2:
         raise ValueError('Need to set --run and can only set one of --pointwise, --pairwise, --setwise, --listwise')
     main(args)
-
-'''
-module load anaconda
-source activate llm-qrel
-
-export OPENAI_API_KEY=temp
-export TRANSFORMERS_CACHE=cache/tranformers
-export IR_DATASETS_HOME=cache/ir_datasets
-export PYSERINI_CACHE=cache/pyserini
-
-dataset=robust04
-NUM_Q=10
-MODEL=flan-t5-xl
-python run_rerank.py \
-  run --model_name_or_path google/flan-t5-xl \
-      --tokenizer_name_or_path google/flan-t5-xl \
-      --run_path fusion/${dataset}/${dataset}-${MODEL}-q${NUM_Q}.fusion.txt \
-      --query_file qrels/${dataset}/${dataset}-${MODEL}-q${NUM_Q}.queries.tsv \
-      --save_path fusion/${dataset}/${dataset}-${MODEL}-q${NUM_Q}.fusion.setwise.txt \
-      --pyserini_index beir-v1.0.0-${dataset} \
-      --hits 100 \
-      --query_length 32 \
-      --passage_length 128 \
-      --scoring generation \
-      --device cuda \
-  setwise --num_child 2 \
-          --method heapsort \
-          --k 10
-'''
